@@ -1,0 +1,19 @@
+{
+  "tag": "baseline",
+  "num_samples": 872,
+  "clean_accuracy": 0.9105504587155964,
+  "f1_score": 0.9137168141592921,
+  "mean_pred_confidence": 0.9833779335021973,
+  "median_pred_confidence": 0.9994933605194092,
+  "p10_pred_confidence": 0.9759352207183838,
+  "confusion_matrix": [
+    [
+      381,
+      47
+    ],
+    [
+      31,
+      413
+    ]
+  ]
+}

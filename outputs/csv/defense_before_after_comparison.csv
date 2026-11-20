@@ -1,0 +1,4 @@
+attack_method,attack_success_rate_pct_before,under_attack_accuracy_pct_before,avg_words_changed_before,avg_queries_before,avg_semantic_similarity_before,attack_success_rate_pct_after,under_attack_accuracy_pct_after,avg_words_changed_after,avg_queries_after,avg_semantic_similarity_after,asr_delta_pp
+textfooler,95.08,4.5,2.4,81.79,0.8351,89.01,10.0,2.49,90.28,0.8299,-6.07
+deepwordbug,83.61,15.0,2.63,24.83,0.802,80.77,17.5,3.07,27.53,0.7633,-2.84
+pwws,82.51,16.0,1.91,124.38,0.845,80.22,18.0,2.23,126.47,0.8306,-2.29

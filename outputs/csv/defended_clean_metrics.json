@@ -1,0 +1,19 @@
+{
+  "tag": "defended",
+  "num_samples": 872,
+  "clean_accuracy": 0.9025229357798165,
+  "f1_score": 0.9032992036405005,
+  "mean_pred_confidence": 0.9131370186805725,
+  "median_pred_confidence": 0.9564980268478394,
+  "p10_pred_confidence": 0.7610456347465515,
+  "confusion_matrix": [
+    [
+      390,
+      38
+    ],
+    [
+      47,
+      397
+    ]
+  ]
+}

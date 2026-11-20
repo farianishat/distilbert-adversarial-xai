@@ -1,0 +1,4 @@
+run_tag,attack_method,num_attempted,num_clean_correct,num_successful,num_failed,num_skipped,original_accuracy_pct,under_attack_accuracy_pct,attack_success_rate_pct,avg_words_changed,median_words_changed,avg_pct_words_changed,avg_queries,avg_semantic_similarity,avg_confidence_drop,runtime_sec
+baseline,textfooler,200,183,174,9,17,91.5,4.5,95.08,2.4,2.0,15.47,81.79,0.8351,0.8327,4578.5
+baseline,deepwordbug,200,183,153,30,17,91.5,15.0,83.61,2.63,2.0,17.25,24.83,0.802,0.8652,1271.8
+baseline,pwws,200,183,151,32,17,91.5,16.0,82.51,1.91,1.0,12.93,124.38,0.845,0.888,5735.3
