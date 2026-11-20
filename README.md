@@ -18,6 +18,7 @@ An end-to-end framework for evaluating, explaining, and defending NLP sentiment 
 - [Explainable AI (Integrated Gradients)](#explainable-ai-integrated-gradients)
 - [Adversarial Defense & Robustness Enhancement](#adversarial-defense--robustness-enhancement)
 - [Summary of Comparative Results](#summary-of-comparative-results)
+- [Limitations](#limitations)
 - [Configuration](#configuration)
 - [License & Acknowledgments](#license--acknowledgments)
 
@@ -30,7 +31,7 @@ Modern Transformer-based NLP models achieve state-of-the-art accuracy on clean b
 This project investigates three critical pillars of trustworthy AI:
 1. **Model Vulnerability (Attacks):** Quantifying how easily a fine-tuned DistilBERT model can be tricked using state-of-the-art attack recipes (TextFooler, PWWS, DeepWordBug).
 2. **Model Transparency (XAI):** Applying Integrated Gradients (IG) to visualize token-level attribution shifts between original clean texts and their adversarial counterparts.
-3. **Model Defense (Adversarial Training):** Augmenting the training dataset with generated adversarial samples and fine-tuning DistilBERT to restore robustness without degrading baseline accuracy.
+3. **Model Defense (Adversarial Training):** Augmenting the training data with generated adversarial samples, fine-tuning DistilBERT, and measuring how much robustness improves and what it costs in clean accuracy.
 
 ---
 
@@ -39,7 +40,7 @@ This project investigates three critical pillars of trustworthy AI:
 - **Multi-Attack Benchmarking:** Evaluates semantic-level (TextFooler, PWWS) and character-level (DeepWordBug) adversarial attacks.
 - **Explainable AI (Captum IG):** Computes token attributions to expose how adversarial perturbations divert the model's focus toward uninformative or misleading tokens.
 - **Interactive & Static Visualizations:** Provides high-resolution heatmaps (`.png`) and standalone HTML visualizations (`.html`) for token attributions.
-- **Adversarial Fine-Tuning Defense:** Hardens DistilBERT against future attack vectors using adversarial data augmentation.
+- **Adversarial Fine-Tuning Defense:** Tests light adversarial data augmentation (300 adversarial + 1,200 clean training sentences, 1 epoch) and re-attacks the model.
 - **Reproducible Environment:** Uses [`uv`](https://github.com/astral-sh/uv) for fast, deterministic dependency resolution.
 
 ---
@@ -122,7 +123,7 @@ uv pip install torch transformers datasets textattack captum matplotlib seaborn 
 
 If package resolution requires overrides, pass the override file:
 ```bash
-uv pip install -r requirements.txt --override uv-overrides.txt
+uv pip install torch transformers datasets textattack captum matplotlib seaborn pandas pyyaml jupyter --override uv-overrides.txt
 ```
 
 ### 4. Launch Notebook
@@ -171,7 +172,15 @@ We benchmark three distinct adversarial attack formulations against the baseline
 * **DeepWordBug:** Character-level perturbations (deletion, insertion, substitution, transposition) targeting token recognition.
 
 ### Attack Success Rate Comparison
-The baseline DistilBERT model exhibits high susceptibility to word-level and character-level adversarial manipulations:
+Each attack was run on a stratified sample of 200 SST-2 validation sentences (183 correctly classified before the attack). The baseline model is highly vulnerable to both word-level and character-level manipulations:
+
+| Attack | Attack Success Rate | Accuracy Under Attack | Avg. Words Changed | Avg. Queries | Avg. Semantic Similarity |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **TextFooler** | `95.1%` | `4.5%` | `2.40` | `81.8` | `0.835` |
+| **DeepWordBug** | `83.6%` | `15.0%` | `2.63` | `24.8` | `0.802` |
+| **PWWS** | `82.5%` | `16.0%` | `1.91` | `124.4` | `0.845` |
+
+*Attack success rate = share of correctly classified sentences flipped to the wrong label. Semantic similarity is cosine similarity from `sentence-transformers/all-MiniLM-L6-v2`.*
 
 ![Attack Success Rate](outputs/figures/01_success_rate_by_attack.png)
 
@@ -183,7 +192,7 @@ To understand attack efficiency and imperceptibility, we analyze the distributio
 | ![Words Perturbed Boxplot](outputs/figures/02_words_perturbed_boxplot.png) | ![Query Count Histogram](outputs/figures/03_query_count_histogram.png) |
 
 ### Substitution Vocabulary & Semantic Impact
-Key sentiment-bearing tokens (e.g., *enjoyable*, *bad*, *great*, *wonderful*) are frequently targeted by attacks to force prediction flips.
+Key sentiment-bearing tokens (the most substituted were *good*, *fun*, *funny*, *bad*, and *best*) are frequently targeted by attacks to force prediction flips.
 
 | Most Substituted Words | Semantic Similarity vs. Confidence Drop |
 | :---: | :---: |
@@ -193,7 +202,7 @@ Key sentiment-bearing tokens (e.g., *enjoyable*, *bad*, *great*, *wonderful*) ar
 
 ## Explainable AI (Integrated Gradients)
 
-Using **Captum**, Integrated Gradients (IG) are computed for both clean and perturbed texts to measure token-level feature importance. This illuminates *why* the model failed on adversarial inputs.
+Using **Captum**, Integrated Gradients (IG) are computed for both clean and perturbed texts to measure token-level feature importance. This illuminates *why* the model failed on adversarial inputs. Across 50 explained clean/adversarial pairs, the model's single most important token changed in **49 of 50** cases after the attack.
 
 ### Token Attribution Heatmaps (Clean vs. Adversarial)
 Below is the combined attribution heatmap across 5 representative successful attack pairs, demonstrating how adversarial perturbations redistribute attribution scores to neutral or irrelevant tokens:
@@ -225,8 +234,18 @@ To defend the model, we perform **Adversarial Fine-Tuning**:
 3. Fine-tune DistilBERT using updated gradient steps.
 4. Re-evaluate against clean data and identical attack recipes.
 
+The defense used 300 adversarial examples (generated with DeepWordBug and TextFooler from the SST-2 **train** split, so there is no leakage into validation), mixed with 1,200 clean training sentences, for **1 epoch** of fine-tuning.
+
 ### Pre- vs. Post-Defense Comparison
-Adversarial fine-tuning significantly increases model resilience against all three attack vectors while preserving clean classification accuracy:
+Light adversarial fine-tuning preserved clean accuracy but gave only **small robustness gains** (2 to 6 percentage points lower attack success):
+
+| Attack | Success Rate Before | Success Rate After | Change | Accuracy Under Attack (Before → After) |
+| :--- | :---: | :---: | :---: | :---: |
+| **TextFooler** | `95.1%` | `89.0%` | `-6.1 pts` | `4.5%` → `10.0%` |
+| **DeepWordBug** | `83.6%` | `80.8%` | `-2.8 pts` | `15.0%` → `17.5%` |
+| **PWWS** | `82.5%` | `80.2%` | `-2.3 pts` | `16.0%` → `18.0%` |
+
+The defended model is also less overconfident: mean prediction confidence on clean validation data dropped from `0.983` to `0.913`, and the average confidence drop caused by a successful attack fell from `0.83`–`0.89` to `0.58`–`0.63`. PWWS was not used to generate training examples, yet improved by a similar margin.
 
 ![Before and After Defense Comparison](outputs/figures/07_before_after_defense_comparison.png)
 
@@ -234,13 +253,25 @@ Adversarial fine-tuning significantly increases model resilience against all thr
 
 ## Summary of Comparative Results
 
-| Metric / Scenario | Baseline Model | Defended Model | Delta / Impact |
+| Metric / Scenario | Baseline Model | Defended Model | Change |
 | :--- | :---: | :---: | :---: |
-| **Clean Accuracy** | `~91.5%` | `~91.0%` | Minimal trade-off (`-0.5%`) |
-| **TextFooler Success Rate** | High (`>80%`) | Substantially Reduced | Strong defense improvement |
-| **PWWS Success Rate** | High (`>75%`) | Substantially Reduced | Enhanced robustness |
-| **DeepWordBug Success Rate** | Moderate/High | Substantially Reduced | Improved character resilience |
-| **Attribution Stability** | Fragile | Focused on Core Sentiment | Restored feature alignment |
+| **Clean Accuracy (872 validation sentences)** | `91.1%` | `90.3%` | `-0.8 pts` |
+| **Clean F1 (872 validation sentences)** | `0.914` | `0.903` | `-0.011` |
+| **TextFooler Success Rate** | `95.1%` | `89.0%` | `-6.1 pts` |
+| **DeepWordBug Success Rate** | `83.6%` | `80.8%` | `-2.8 pts` |
+| **PWWS Success Rate** | `82.5%` | `80.2%` | `-2.3 pts` |
+| **Mean Clean Prediction Confidence** | `0.983` | `0.913` | `-0.070` |
+
+**Bottom line:** DistilBERT is easy to fool with about 2 word edits per sentence. One epoch of fine-tuning on 300 adversarial examples keeps clean accuracy but is not enough to make the model robust. A larger adversarial set, more epochs, or stronger defenses are needed.
+
+---
+
+## Limitations
+
+1. **Some "successful" attacks change the true sentiment.** Manual review of the showcased examples found word swaps that reverse the meaning (for example, *surprisingly* → *appallingly*, *unfunny* → *funnier*, *bore* → *deliver*) while still scoring about 0.99 semantic similarity. These are label changes, not adversarial examples, so the reported success rates are an **upper bound** on true model brittleness.
+2. **Small evaluation sample.** Each attack used 200 validation sentences on CPU. Rates on the full 872-sentence set may differ by a few points.
+3. **Light defense budget.** The defense used 300 adversarial examples and 1 epoch to stay within a CPU budget. The small gains show this budget is too low, not that adversarial training cannot work.
+4. **Similarity metric.** Sentence-embedding cosine similarity does not detect antonym swaps well, which is why limitation 1 is not caught automatically.
 
 ---
 
@@ -249,28 +280,34 @@ Adversarial fine-tuning significantly increases model resilience against all thr
 All experiment parameters are managed via `config.yaml` for full reproducibility:
 
 ```yaml
+data:
+  dataset_name: "stanfordnlp/sst2"
+  eval_split: "validation"     # 872 labeled sentences
+  train_split: "train"         # used only for defense augmentation
+
 model:
-  name: "distilbert-base-uncased-finetuned-sst-2-english"
-  max_length: 128
+  pretrained_name: "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 
 attacks:
-  textfooler:
-    max_candidates: 20
-    min_cos_sim: 0.5
-  pwws:
-    enabled: true
-  deepwordbug:
-    neighbor_one_hop: true
+  recipes: ["textfooler", "deepwordbug", "pwws"]
+  num_samples: 200             # stratified subset of the validation split
+  query_budget: 250
 
-xai:
-  method: "integrated_gradients"
-  n_steps: 50
-  internal_batch_size: 16
+similarity:
+  backend: "sentence_transformers"
+  st_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+explainability:
+  num_pairs: 50
+  n_steps: 24
 
 defense:
-  epochs: 3
-  learning_rate: 2e-5
+  adv_generation_recipes: ["deepwordbug", "textfooler"]
+  num_adv_examples: 300
+  num_clean_examples: 1200
+  epochs: 1
   batch_size: 16
+  learning_rate: 2.0e-5
 ```
 
 ---
