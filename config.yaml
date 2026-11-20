@@ -1,0 +1,92 @@
+# =============================================================================
+# Configuration for: Breaking and Explaining a Sentiment Model (CPU-Only)
+# =============================================================================
+# Runtime Guide (typical 4-8 core laptop CPU, ~15-25 ms / DistilBERT pass):
+#   - Quick smoke test : set attacks.num_samples=25, explainability.num_pairs=10,
+#                        defense.num_adv_examples=60, defense.num_clean_examples=200 (~15 min)
+#   - Portfolio default: settings below (~1.5 - 2.5 hours total, safely < 4h)
+#   - Extended run     : set attacks.num_samples=300, defense.num_adv_examples=500 (~3.5 - 4h)
+
+project:
+  name: "Breaking and Explaining a Sentiment Model"
+  seed: 42
+  force_cpu: true
+  cpu_num_threads: 4          # Adjust to physical CPU cores for best throughput
+  resume_from_cache: true     # Reuse saved CSVs/checkpoints if re-running notebook
+
+paths:
+  output_dir: "outputs"
+  csv_dir: "outputs/csv"
+  figures_dir: "outputs/figures"
+  html_dir: "outputs/html"
+  models_dir: "outputs/models"
+
+data:
+  dataset_name: "stanfordnlp/sst2"
+  eval_split: "validation"    # 872 labeled sentences
+  train_split: "train"        # Used strictly for defense augmentation (no val leakage)
+  max_length: 128
+
+model:
+  # Note: official Hugging Face repo uses hyphenated 'base-uncased'
+  pretrained_name: "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+  eval_batch_size: 32
+
+attacks:
+  recipes:
+    - "textfooler"
+    - "deepwordbug"
+    - "pwws"
+  run_smoke_test: true
+  smoke_test_samples: 15
+  num_samples: 200            # Configurable: 150-300 recommended for <4h CPU budget
+  stratified_subset: true     # Balanced pos/neg subset from the 872 val sentences
+  query_budget: 250           # Caps worst-case outlier sentences on CPU
+  # If tensorflow-hub is unavailable, fallback removes TF-Hub USE inside TextFooler
+  # while keeping WordEmbeddingDistance & POS constraints active.
+  allow_textfooler_no_tf_fallback: true
+  disable_textattack_stdout: true
+
+similarity:
+  # Options: "sentence_transformers" (fast PyTorch CPU, default) or "use" (TF-Hub USE)
+  backend: "sentence_transformers"
+  st_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  use_hub_url: "https://tfhub.dev/google/universal-sentence-encoder/4"
+  batch_size: 64
+
+explainability:
+  num_pairs: 50               # Successful clean/adv pairs to explain with Captum IG
+  num_heatmap_examples: 5     # Showcase pairs exported as HTML + 300 DPI PNGs
+  n_steps: 24                 # Integration steps (20-32 balances CPU speed & accuracy)
+  internal_batch_size: 8
+  merge_wordpieces: true      # Merge '##' subwords into full words for cleaner plots
+
+defense:
+  enabled: true
+  # Adversarial examples generated strictly from SST-2 TRAIN split
+  adv_generation_recipes:
+    - "deepwordbug"
+    - "textfooler"
+  num_adv_examples: 300       # Target adversarial examples (scale up to 1000 if desired)
+  max_train_candidates: 1200  # Max train sentences scanned to harvest num_adv_examples
+  num_clean_examples: 1200    # Clean train sentences mixed in to preserve clean accuracy
+  epochs: 1
+  batch_size: 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  train_max_length: 96        # SST-2 sentences are short (~19 tokens); speeds up CPU training
+  reattack_num_samples: 200   # Matches attacks.num_samples for exact apples-to-apples comparison
+
+visualization:
+  dpi: 300
+  style: "whitegrid"
+  font_scale: 1.05
+  top_k_substituted_words: 15
+  palette:
+    textfooler: "#2B5B84"     # Steel Blue
+    deepwordbug: "#D95F02"    # Burnt Orange
+    pwws: "#1B9E77"           # Teal Green
+    before: "#7570B3"         # Muted Indigo
+    after: "#1B9E77"          # Teal Green
